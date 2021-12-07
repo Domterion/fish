@@ -13,7 +13,7 @@ export class Server {
 	private express: Application;
 	private wss: WebSocketServer;
 	/**
-	 * Heartbeat:
+	 * Heartbeat
 	 * The user gets the heartbeat with op 1 when they first connect
 	 * The user must send a message with op 10 every heartbeat to keep the connection alive
 	 * The websocket will respond with op 11 on successful heartbeat
@@ -153,12 +153,12 @@ export class Server {
 		try {
 			message = JSON.parse(data.toString());
 		} catch {
-			const json = JSON.stringify({
-				success: false,
-				data: {
-					message: "Invalid JSON body",
-				},
-			});
+			// TODO: More informant error handling could be nice
+			const payload: Message = {
+				error: 4000,
+			};
+			const json = JSON.stringify(payload);
+
 			return ws.send(json);
 		}
 
@@ -167,6 +167,12 @@ export class Server {
 				this.handleWsHeartbeat(ws);
 				break;
 			default:
+				const payload: Message = {
+					error: 4000,
+				};
+				const json = JSON.stringify(payload);
+
+				ws.send(json);
 				break;
 		}
 	}
