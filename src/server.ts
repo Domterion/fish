@@ -2,9 +2,9 @@ import bodyParser from "body-parser";
 import express, {
 	Application,
 	Request,
-	RequestHandler,
 	Response,
 } from "express";
+import helmet from "helmet";
 import { createServer, Server as HttpServer } from "http";
 import { RawData, WebSocket, WebSocketServer } from "ws";
 import { ChatMessage, Message } from "./models/message";
@@ -27,6 +27,7 @@ export class Server {
 
 		this.express.use(bodyParser.urlencoded({ extended: false }));
 		this.express.use(bodyParser.json());
+		this.express.use(helmet());
 
 		this.http = createServer(this.express);
 		this.wss = new WebSocketServer({ server: this.http });
@@ -66,7 +67,6 @@ export class Server {
 				const ws = ws_ as FishWebSocket;
 
 				if (!ws.isAlive) {
-					console.log("owo");
 					ws.send("terminating");
 					return ws.terminate();
 				}
@@ -101,7 +101,17 @@ export class Server {
 
 		this.wss.clients.forEach(function each(ws: WebSocket) {
 			if (ws.readyState === WebSocket.OPEN) {
-				ws.send(`Message: ${message.content}`);
+				const payload: Message = {
+					op: 0,
+					event: "MESSAGE_CREATED",
+					data: {
+						content: message.content,
+					},
+				};
+
+				const json = JSON.stringify(payload);
+
+				ws.send(json);
 			}
 		});
 
