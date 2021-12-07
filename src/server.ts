@@ -1,9 +1,5 @@
 import bodyParser from "body-parser";
-import express, {
-	Application,
-	Request,
-	Response,
-} from "express";
+import express, { Application, Request, Response } from "express";
 import helmet from "helmet";
 import { createServer, Server as HttpServer } from "http";
 import { RawData, WebSocket, WebSocketServer } from "ws";
@@ -16,7 +12,12 @@ export class Server {
 	private http: HttpServer;
 	private express: Application;
 	private wss: WebSocketServer;
-	// The heartbeat in milliseconds
+	/**
+	 * Heartbeat:
+	 * The user gets the heartbeat with op 1 when they first connect
+	 * The user must send a message with op 10 every heartbeat to keep the connection alive
+	 * The websocket will respond with op 11 on successful heartbeat
+	 */
 	private HEARTBEAT = process.env.HEARTBEAT;
 
 	/**
@@ -57,22 +58,28 @@ export class Server {
 		this.wss.on("connection", (ws: FishWebSocket, req) => {
 			ws.isAlive = true;
 
-			ws.on("pong", () => this.handleWsPong(ws));
+			const payload: Message = {
+				op: 1,
+				data: {
+					heartbeat: this.HEARTBEAT,
+				},
+			};
+			const json = JSON.stringify(payload);
+
+			ws.send(json);
+
 			ws.on("message", (data) => this.handleWsMessage(ws, data));
 		});
 
-		// TODO: This needs proper testing, no testing has been done to confirm connection termination
 		const interval = setInterval(() => {
 			this.wss.clients.forEach((ws_) => {
 				const ws = ws_ as FishWebSocket;
 
 				if (!ws.isAlive) {
-					ws.send("terminating");
 					return ws.terminate();
 				}
 
 				ws.isAlive = false;
-				ws.ping();
 			});
 		}, this.HEARTBEAT);
 
@@ -90,7 +97,7 @@ export class Server {
 	 * @param {Response} res The response object
 	 */
 	private handleHttpMessage(req: Request, res: Response) {
-		let message: ChatMessage = req.body;
+		const message: ChatMessage = req.body;
 
 		if (!message.content) {
 			return res.json({
@@ -99,7 +106,7 @@ export class Server {
 			});
 		}
 
-		this.wss.clients.forEach(function each(ws: WebSocket) {
+		this.wss.clients.forEach((ws: WebSocket) => {
 			if (ws.readyState === WebSocket.OPEN) {
 				const payload: Message = {
 					op: 0,
@@ -123,9 +130,16 @@ export class Server {
 	 *
 	 * @param {FishWebSocket} ws The websocket connection to keep alive
 	 */
-	private handleWsPong(ws: FishWebSocket) {
-		ws.send("thanks for the pong");
+	private handleWsHeartbeat(ws: FishWebSocket) {
 		ws.isAlive = true;
+
+		const payload: Message = {
+			op: 11,
+		};
+
+		const json = JSON.stringify(payload);
+
+		ws.send(json);
 	}
 
 	/**
@@ -148,15 +162,12 @@ export class Server {
 			return ws.send(json);
 		}
 
-		console.log(`Got message\nMessage: ${message.op}`);
-
-		const json = JSON.stringify({
-			success: true,
-			data: {
-				message: `Did opcode ${message.op}`,
-				heartbeat: this.HEARTBEAT,
-			},
-		});
-		return ws.send(json);
+		switch (message.op) {
+			case 10:
+				this.handleWsHeartbeat(ws);
+				break;
+			default:
+				break;
+		}
 	}
 }
