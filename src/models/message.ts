@@ -11,7 +11,7 @@ export type opCodes = 0 | 1 | 10 | 11;
  * Errorcodes
  * 4000 : Invalid payload
  */
- export type errorCodes = 4000;
+export type errorCodes = 4000;
 
 /**
  * Event Names
