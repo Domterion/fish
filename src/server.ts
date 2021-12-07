@@ -7,7 +7,7 @@ import express, {
 } from "express";
 import { createServer, Server as HttpServer } from "http";
 import { RawData, WebSocket, WebSocketServer } from "ws";
-import { Message } from "./models/message";
+import { ChatMessage, Message } from "./models/message";
 import { FishWebSocket } from "./models/websocket";
 
 export class Server {
@@ -90,9 +90,18 @@ export class Server {
 	 * @param {Response} res The response object
 	 */
 	private handleHttpMessage(req: Request, res: Response) {
+		let message: ChatMessage = req.body;
+
+		if (!message.content) {
+			return res.json({
+				success: false,
+				data: { message: "Missing content." },
+			});
+		}
+
 		this.wss.clients.forEach(function each(ws: WebSocket) {
 			if (ws.readyState === WebSocket.OPEN) {
-				ws.send("got new message");
+				ws.send(`Message: ${message.content}`);
 			}
 		});
 
@@ -122,7 +131,9 @@ export class Server {
 		} catch {
 			const json = JSON.stringify({
 				success: false,
-				message: "Invalid JSON body",
+				data: {
+					message: "Invalid JSON body",
+				},
 			});
 			return ws.send(json);
 		}
@@ -131,7 +142,10 @@ export class Server {
 
 		const json = JSON.stringify({
 			success: true,
-			message: `Did opcode ${message.op}`,
+			data: {
+				message: `Did opcode ${message.op}`,
+				heartbeat: this.HEARTBEAT,
+			},
 		});
 		return ws.send(json);
 	}
